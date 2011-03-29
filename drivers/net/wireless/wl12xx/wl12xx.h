@@ -631,6 +631,10 @@ struct wl12xx_vif {
 	int rssi_thold;
 	int last_rssi_event;
 
+	/* save the current encryption type for auto-arp config */
+	u8 encryption_type;
+	__be32 ip_addr;
+
 	/* RX BA constraint value */
 	bool ba_support;
 	bool ba_allowed;

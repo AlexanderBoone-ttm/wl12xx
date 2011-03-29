@@ -2528,6 +2528,9 @@ static int wl1271_join(struct wl1271 *wl, struct wl12xx_vif *wlvif,
 	if (test_bit(WLVIF_FLAG_STA_ASSOCIATED, &wlvif->flags))
 		wl1271_info("JOIN while associated.");
 
+	/* clear encryption type */
+	wlvif->encryption_type = KEY_NONE;
+
 	if (set_assoc)
 		set_bit(WLVIF_FLAG_STA_ASSOCIATED, &wlvif->flags);
 
@@ -3174,6 +3177,17 @@ static int wl1271_op_set_key(struct ieee80211_hw *hw, enum set_key_cmd cmd,
 		if (ret < 0) {
 			wl1271_error("Could not add or replace key");
 			goto out_sleep;
+		}
+
+		/* reconfiguring arp response (data packet) */
+		if (wlvif->bss_type == BSS_TYPE_STA_BSS &&
+		    wlvif->encryption_type != key_type) {
+			wlvif->encryption_type = key_type;
+			ret = wl1271_cmd_build_arp_rsp(wl, wlvif);
+			if (ret < 0) {
+				wl1271_warning("build arp rsp failed: %d", ret);
+				goto out_sleep;
+			}
 		}
 		break;
 
@@ -4013,13 +4027,14 @@ sta_not_found:
 
 		if (bss_conf->arp_addr_cnt == 1 &&
 		    bss_conf->arp_filter_enabled) {
+			wlvif->ip_addr = addr;
 			/*
 			 * The template should have been configured only upon
 			 * association. however, it seems that the correct ip
 			 * isn't being set (when sending), so we have to
 			 * reconfigure the template upon every ip change.
 			 */
-			ret = wl1271_cmd_build_arp_rsp(wl, wlvif, addr);
+			ret = wl1271_cmd_build_arp_rsp(wl, wlvif);
 			if (ret < 0) {
 				wl1271_warning("build arp rsp failed: %d", ret);
 				goto out;
@@ -4028,8 +4043,10 @@ sta_not_found:
 			ret = wl1271_acx_arp_ip_filter(wl, wlvif,
 				ACX_ARP_FILTER_ARP_FILTERING,
 				addr);
-		} else
+		} else {
+			wlvif->ip_addr = 0;
 			ret = wl1271_acx_arp_ip_filter(wl, wlvif, 0, addr);
+		}
 
 		if (ret < 0)
 			goto out;
@@ -5103,7 +5120,7 @@ static int wl1271_init_ieee80211(struct wl1271 *wl)
 	};
 
 	/* The tx descriptor buffer and the TKIP space. */
-	wl->hw->extra_tx_headroom = WL1271_TKIP_IV_SPACE +
+	wl->hw->extra_tx_headroom = WL1271_EXTRA_SPACE_TKIP +
 		sizeof(struct wl1271_tx_hw_descr);
 
 	/* unit us */
