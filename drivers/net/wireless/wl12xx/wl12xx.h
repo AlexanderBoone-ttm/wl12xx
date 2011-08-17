@@ -510,7 +510,6 @@ struct wl1271 {
 	struct completion *elp_compl;
 	struct completion *ps_compl;
 	struct delayed_work elp_work;
-	struct delayed_work pspoll_work;
 
 	/* counter for ps-poll delivery failures */
 	int ps_poll_failures;
@@ -603,6 +602,7 @@ struct wl1271_station {
 };
 
 struct wl12xx_vif {
+	struct wl1271 *wl;
 	u8 bss_type;
 	u8 p2p; /* we are using p2p role */
 	u8 role_id;
@@ -649,6 +649,8 @@ struct wl12xx_vif {
 
 	/* Session counter for the chipset */
 	int session_counter;
+
+	struct delayed_work pspoll_work;
 };
 
 static inline struct wl12xx_vif *wl12xx_vif_to_data(struct ieee80211_vif *vif)
