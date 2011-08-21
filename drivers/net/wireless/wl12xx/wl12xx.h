@@ -502,9 +502,6 @@ struct wl1271 {
 	/* The current band */
 	enum ieee80211_band band;
 
-	/* Default key (for WEP) */
-	u32 default_key;
-
 	/* Rx Streaming */
 	struct work_struct rx_streaming_enable_work;
 	struct work_struct rx_streaming_disable_work;
@@ -643,6 +640,9 @@ struct wl12xx_vif {
 
 	/* Beaconing interval (needed for ad-hoc) */
 	u32 beacon_int;
+
+	/* Default key (for WEP) */
+	u32 default_key;
 
 	/* Our association ID */
 	u16 aid;
