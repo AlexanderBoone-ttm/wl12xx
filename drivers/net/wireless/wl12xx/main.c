@@ -2134,7 +2134,7 @@ deinit:
 	mutex_lock(&wl->mutex);
 
 	/* let's notify MAC80211 about the remaining pending TX frames */
-	wl1271_tx_reset(wl, reset_tx_queues);
+	wl1271_tx_reset(wl, wlvif, reset_tx_queues);
 	wl1271_power_off(wl);
 
 	wl->band = IEEE80211_BAND_2GHZ;

@@ -206,7 +206,8 @@ static inline int wl1271_tx_total_queue_count(struct wl1271 *wl)
 void wl1271_tx_work(struct work_struct *work);
 void wl1271_tx_work_locked(struct wl1271 *wl, struct ieee80211_vif *vif);
 void wl1271_tx_complete(struct wl1271 *wl);
-void wl1271_tx_reset(struct wl1271 *wl, bool reset_tx_queues);
+void wl1271_tx_reset(struct wl1271 *wl, struct wl12xx_vif *wlvif,
+		     bool reset_tx_queues);
 void wl1271_tx_flush(struct wl1271 *wl);
 u8 wl1271_rate_to_idx(int rate, enum ieee80211_band band);
 u32 wl1271_tx_enabled_rates_get(struct wl1271 *wl, u32 rate_set,

@@ -907,17 +907,16 @@ void wl1271_tx_reset_link_queues(struct wl1271 *wl, u8 hlid)
 }
 
 /* caller must hold wl->mutex and TX must be stopped */
-void wl1271_tx_reset(struct wl1271 *wl, bool reset_tx_queues)
+void wl1271_tx_reset(struct wl1271 *wl, struct wl12xx_vif *wlvif,
+		     bool reset_tx_queues)
 {
-	struct ieee80211_vif *vif = wl->vif; /* TODO: get as param */
-	struct wl12xx_vif *wlvif = wl12xx_vif_to_data(vif);
 	int i;
 	struct sk_buff *skb;
 	struct ieee80211_tx_info *info;
 
 	/* TX failure */
 	if (wlvif->bss_type == BSS_TYPE_AP_BSS) {
-		for (i = 0; i < WL12XX_MAX_LINKS; i++) {
+		for_each_set_bit(i, wlvif->links_map, WL12XX_MAX_LINKS) {
 			wl1271_free_sta(wl, wlvif, i);
 			wl1271_tx_reset_link_queues(wl, i);
 			wl->links[i].allocated_pkts = 0;
