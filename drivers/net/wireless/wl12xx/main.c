@@ -1808,7 +1808,13 @@ static int wl1271_op_start(struct ieee80211_hw *hw)
 
 static void wl1271_op_stop(struct ieee80211_hw *hw)
 {
+	struct wl1271 *wl = hw->priv;
+
 	wl1271_debug(DEBUG_MAC80211, "mac80211 stop");
+
+	mutex_lock(&wl_list_mutex);
+	list_del(&wl->list);
+	mutex_unlock(&wl_list_mutex);
 }
 
 static u8 wl12xx_get_role_type(struct wl1271 *wl, struct wl12xx_vif *wlvif)
@@ -1952,6 +1958,7 @@ power_off:
 	wl1271_debug(DEBUG_MAC80211, "11a is %ssupported",
 		     wl->enable_11a ? "" : "not ");
 
+	wl->state = WL1271_STATE_ON;
 out:
 	return booted;
 }
@@ -1996,23 +2003,23 @@ static int wl1271_op_add_interface(struct ieee80211_hw *hw,
 		ret = -EINVAL;
 		goto out;
 	}
+
 	/*
-	 * we still need this in order to configure the fw
-	 * while uploading the nvs
+	 * TODO: after the nvs issue will be solved, move this block
+	 * to start(), and make sure here the driver is ON.
 	 */
-	memcpy(wl->mac_addr, vif->addr, ETH_ALEN);
+	if (wl->state == WL1271_STATE_OFF) {
+		/*
+		 * we still need this in order to configure the fw
+		 * while uploading the nvs
+		 */
+		memcpy(wl->mac_addr, vif->addr, ETH_ALEN);
 
-	if (wl->state != WL1271_STATE_OFF) {
-		wl1271_error("cannot start because not in off state: %d",
-			     wl->state);
-		ret = -EBUSY;
-		goto out;
-	}
-
-	booted = wl12xx_init_fw(wl);
-	if (!booted) {
-		ret = -EINVAL;
-		goto out;
+		booted = wl12xx_init_fw(wl);
+		if (!booted) {
+			ret = -EINVAL;
+			goto out;
+		}
 	}
 
 	if (wlvif->bss_type == BSS_TYPE_STA_BSS ||
@@ -2040,7 +2047,6 @@ static int wl1271_op_add_interface(struct ieee80211_hw *hw,
 		goto out;
 
 	wl->vif = vif;
-	wl->state = WL1271_STATE_ON;
 	set_bit(WL1271_FLAG_IF_INITIALIZED, &wl->flags);
 out:
 	mutex_unlock(&wl->mutex);
@@ -2068,15 +2074,12 @@ static void __wl1271_op_remove_interface(struct wl1271 *wl,
 
 	wl1271_info("down");
 
-	mutex_lock(&wl_list_mutex);
-	list_del(&wl->list);
-	mutex_unlock(&wl_list_mutex);
-
 	/* enable dyn ps just in case (if left on due to fw crash etc) */
 	if (wlvif->bss_type == BSS_TYPE_STA_BSS)
-		ieee80211_enable_dyn_ps(wl->vif);
+		ieee80211_enable_dyn_ps(vif);
 
-	if (wl->scan.state != WL1271_SCAN_STATE_IDLE) {
+	if (wl->scan.state != WL1271_SCAN_STATE_IDLE &&
+	    wl->scan_vif == vif) {
 		wl->scan.state = WL1271_SCAN_STATE_IDLE;
 		memset(wl->scan.scanned_ch, 0, sizeof(wl->scan.scanned_ch));
 		wl->scan_vif = NULL;
