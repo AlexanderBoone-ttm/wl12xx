@@ -1113,15 +1113,16 @@ out:
 	return ret;
 }
 
-int wl1271_cmd_build_probe_req(struct wl1271 *wl,
+int wl1271_cmd_build_probe_req(struct wl1271 *wl, struct wl12xx_vif *wlvif,
 			       const u8 *ssid, size_t ssid_len,
 			       const u8 *ie, size_t ie_len, u8 band)
 {
+	struct ieee80211_vif *vif = wl12xx_wlvif_to_vif(wlvif);
 	struct sk_buff *skb;
 	int ret;
 	u32 rate;
 
-	skb = ieee80211_probereq_get(wl->hw, wl->vif, ssid, ssid_len,
+	skb = ieee80211_probereq_get(wl->hw, vif, ssid, ssid_len,
 				     ie, ie_len);
 	if (!skb) {
 		ret = -ENOMEM;
@@ -1144,13 +1145,15 @@ out:
 }
 
 struct sk_buff *wl1271_cmd_build_ap_probe_req(struct wl1271 *wl,
+					      struct wl12xx_vif *wlvif,
 					      struct sk_buff *skb)
 {
+	struct ieee80211_vif *vif = wl12xx_wlvif_to_vif(wlvif);
 	int ret;
 	u32 rate;
 
 	if (!skb)
-		skb = ieee80211_ap_probereq_get(wl->hw, wl->vif);
+		skb = ieee80211_ap_probereq_get(wl->hw, vif);
 	if (!skb)
 		goto out;
 

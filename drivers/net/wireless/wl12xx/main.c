@@ -3577,6 +3577,7 @@ sta_not_found:
 			 */
 			dev_kfree_skb(wlvif->probereq);
 			wlvif->probereq = wl1271_cmd_build_ap_probe_req(wl,
+									wlvif,
 									NULL);
 			ieoffset = offsetof(struct ieee80211_mgmt,
 					    u.probe_req.variable);
@@ -3601,7 +3602,7 @@ sta_not_found:
 			wlvif->probereq = NULL;
 
 			/* re-enable dynamic ps - just in case */
-			ieee80211_enable_dyn_ps(wl->vif);
+			ieee80211_enable_dyn_ps(vif);
 
 			/* revert back to minimum rates for the current band */
 			wl1271_set_band_rate(wl, wlvif);
