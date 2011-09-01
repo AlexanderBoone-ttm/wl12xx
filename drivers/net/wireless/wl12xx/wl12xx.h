@@ -415,7 +415,6 @@ struct wl1271 {
 	s64 time_offset;
 
 	/* Frames scheduled for transmission, not handled yet */
-	struct sk_buff_head tx_queue[NUM_TX_QUEUES];
 	int tx_queue_count[NUM_TX_QUEUES];
 	long stopped_queues_map;
 
@@ -585,13 +584,13 @@ struct wl12xx_vif {
 			unsigned long sta_hlid_map[BITS_TO_LONGS(
 							WL12XX_MAX_LINKS)];
 
-			/* the hlid of the transmitted skb */
-			int last_tx_hlid;
-
 			/* recoreded keys - set here before AP startup */
 			struct wl1271_ap_key *recorded_keys[MAX_NUM_KEYS];
 		} ap;
 	};
+
+	/* the hlid of the last transmitted skb */
+	int last_tx_hlid;
 
 	unsigned long links_map[BITS_TO_LONGS(WL12XX_MAX_LINKS)];
 
