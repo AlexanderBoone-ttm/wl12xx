@@ -475,9 +475,6 @@ struct wl1271 {
 
 	bool sched_scanning;
 
-	/* The current band */
-	enum ieee80211_band band;
-
 	struct completion *elp_compl;
 	struct delayed_work elp_work;
 
@@ -585,6 +582,9 @@ struct wl12xx_vif {
 
 	u8 ssid[IEEE80211_MAX_SSID_LEN + 1];
 	u8 ssid_len;
+
+	/* The current band */
+	enum ieee80211_band band;
 
 	u32 bitrate_masks[IEEE80211_NUM_BANDS];
 	u32 basic_rate_set;

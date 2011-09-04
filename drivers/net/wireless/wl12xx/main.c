@@ -1840,8 +1840,6 @@ static void wl1271_op_stop(struct ieee80211_hw *hw)
 	/* let's notify MAC80211 about the remaining pending TX frames */
 	wl1271_power_off(wl);
 
-	wl->band = IEEE80211_BAND_2GHZ;
-
 	wl->rx_counter = 0;
 	wl->power_level = WL1271_DEFAULT_POWER_LEVEL;
 	wl->tx_blocks_available = 0;
@@ -1961,6 +1959,7 @@ static int wl12xx_init_vif_data(struct wl1271 *wl, struct ieee80211_vif *vif)
 	wlvif->basic_rate = CONF_TX_RATE_MASK_BASIC;
 	wlvif->rate_set = CONF_TX_RATE_MASK_BASIC;
 	wlvif->beacon_int = WL1271_DEFAULT_BEACON_INT;
+	wlvif->band = IEEE80211_BAND_2GHZ;
 
 	INIT_WORK(&wlvif->rx_streaming_enable_work,
 		  wl1271_rx_streaming_enable_work);
@@ -2199,6 +2198,7 @@ deinit:
 	memset(wlvif->ap.sta_hlid_map, 0, sizeof(wlvif->ap.sta_hlid_map));
 	wlvif->role_id = WL12XX_INVALID_ROLE_ID;
 	wlvif->dev_role_id = WL12XX_INVALID_ROLE_ID;
+	
 
 	mutex_unlock(&wl->mutex);
 	del_timer_sync(&wlvif->rx_streaming_timer);
@@ -2306,7 +2306,7 @@ out:
 
 static void wl1271_set_band_rate(struct wl1271 *wl, struct wl12xx_vif *wlvif)
 {
-	wlvif->basic_rate_set = wlvif->bitrate_masks[wl->band];
+	wlvif->basic_rate_set = wlvif->bitrate_masks[wlvif->band];
 	wlvif->rate_set = wlvif->basic_rate_set;
 }
 
@@ -2359,7 +2359,7 @@ static int wl1271_sta_handle_idle(struct wl1271 *wl, struct wl12xx_vif *wlvif,
 		if (ret < 0)
 			goto out;
 
-		ret = wl12xx_roc(wl, wlvif->dev_role_id);
+		ret = wl12xx_roc(wl, wlvif, wlvif->dev_role_id);
 		if (ret < 0)
 			goto out;
 		clear_bit(WL1271_FLAG_IDLE, &wl->flags);
@@ -2402,7 +2402,7 @@ static int wl1271_op_config(struct ieee80211_hw *hw, u32 changed)
 	if (unlikely(wl->state == WL1271_STATE_OFF)) {
 		/* we support configuring the channel and band while off */
 		if ((changed & IEEE80211_CONF_CHANGE_CHANNEL)) {
-			wl->band = conf->channel->band;
+			wlvif->band = conf->channel->band;
 			wl->channel = channel;
 		}
 
@@ -2420,11 +2420,11 @@ static int wl1271_op_config(struct ieee80211_hw *hw, u32 changed)
 
 	/* if the channel changes while joined, join again */
 	if (changed & IEEE80211_CONF_CHANGE_CHANNEL &&
-	    ((wl->band != conf->channel->band) ||
+	    ((wlvif->band != conf->channel->band) ||
 	     (wl->channel != channel))) {
 		/* send all pending packets */
 		wl1271_tx_work_locked(wl);
-		wl->band = conf->channel->band;
+		wlvif->band = conf->channel->band;
 		wl->channel = channel;
 
 		if (!is_ap) {
@@ -2470,7 +2470,7 @@ static int wl1271_op_config(struct ieee80211_hw *hw, u32 changed)
 					if (ret < 0)
 						goto out_sleep;
 
-					ret = wl12xx_roc(wl,
+					ret = wl12xx_roc(wl, wlvif,
 							 wlvif->dev_role_id);
 					if (ret < 0)
 						wl1271_warning("roc failed %d",
@@ -3388,7 +3388,7 @@ static void wl1271_bss_info_changed_ap(struct wl1271 *wl,
 		u32 rates = bss_conf->basic_rates;
 
 		wlvif->basic_rate_set = wl1271_tx_enabled_rates_get(wl, rates,
-								 wl->band);
+								 wlvif->band);
 		wlvif->basic_rate = wl1271_tx_min_rate_get(wl,
 							wlvif->basic_rate_set);
 
@@ -3484,7 +3484,7 @@ static void wl1271_bss_info_changed_sta(struct wl1271 *wl,
 					       &wlvif->flags)) {
 				wl1271_unjoin(wl, wlvif);
 				wl12xx_cmd_role_start_dev(wl, wlvif);
-				wl12xx_roc(wl, wlvif->dev_role_id);
+				wl12xx_roc(wl, wlvif, wlvif->dev_role_id);
 			}
 		}
 	}
@@ -3563,7 +3563,7 @@ sta_not_found:
 			rates = bss_conf->basic_rates;
 			wlvif->basic_rate_set =
 				wl1271_tx_enabled_rates_get(wl, rates,
-							    wl->band);
+							    wlvif->band);
 			wlvif->basic_rate =
 				wl1271_tx_min_rate_get(wl,
 						       wlvif->basic_rate_set);
@@ -3571,7 +3571,7 @@ sta_not_found:
 				wlvif->rate_set =
 					wl1271_tx_enabled_rates_get(wl,
 								sta_rate_set,
-								wl->band);
+								wlvif->band);
 			ret = wl1271_acx_sta_rate_policies(wl, wlvif);
 			if (ret < 0)
 				goto out;
@@ -3662,7 +3662,8 @@ sta_not_found:
 				wl1271_unjoin(wl, wlvif);
 				if (!(conf_flags & IEEE80211_CONF_IDLE)) {
 					wl12xx_cmd_role_start_dev(wl, wlvif);
-					wl12xx_roc(wl, wlvif->dev_role_id);
+					wl12xx_roc(wl, wlvif,
+						   wlvif->dev_role_id);
 				}
 			}
 		}
@@ -3676,7 +3677,7 @@ sta_not_found:
 			u32 rates = bss_conf->basic_rates;
 			wlvif->basic_rate_set =
 				wl1271_tx_enabled_rates_get(wl, rates,
-							    wl->band);
+							    wlvif->band);
 			wlvif->basic_rate =
 				wl1271_tx_min_rate_get(wl,
 						       wlvif->basic_rate_set);
@@ -3730,7 +3731,7 @@ sta_not_found:
 
 		/* ROC until connected (after EAPOL exchange) */
 		if (!is_ibss) {
-			ret = wl12xx_roc(wl, wlvif->role_id);
+			ret = wl12xx_roc(wl, wlvif, wlvif->role_id);
 			if (ret < 0)
 				goto out;
 
@@ -4033,7 +4034,7 @@ static int wl1271_op_sta_add(struct ieee80211_hw *hw,
 	if (ret < 0)
 		goto out_free_sta;
 
-	ret = wl12xx_cmd_add_peer(wl, sta, hlid);
+	ret = wl12xx_cmd_add_peer(wl, wlvif, sta, hlid);
 	if (ret < 0)
 		goto out_sleep;
 
@@ -4874,7 +4875,6 @@ struct ieee80211_hw *wl1271_alloc_hw(void)
 	wl->channel = WL1271_DEFAULT_CHANNEL;
 	wl->rx_counter = 0;
 	wl->power_level = WL1271_DEFAULT_POWER_LEVEL;
-	wl->band = IEEE80211_BAND_2GHZ;
 	wl->vif = NULL;
 	wl->flags = 0;
 	wl->sg_enabled = true;
