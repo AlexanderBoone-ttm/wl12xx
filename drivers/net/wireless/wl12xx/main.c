@@ -1859,7 +1859,6 @@ static void wl1271_op_stop(struct ieee80211_hw *hw)
 	wl->tx_results_count = 0;
 	wl->tx_packets_count = 0;
 	wl->time_offset = 0;
-	wl->vif = NULL;
 	wl->tx_spare_blocks = TX_HW_BLOCK_SPARE_DEFAULT;
 	wl->ap_fw_ps_map = 0;
 	wl->ap_ps_map = 0;
@@ -2070,13 +2069,6 @@ static int wl1271_op_add_interface(struct ieee80211_hw *hw,
 		     ieee80211_vif_type_p2p(vif), vif->addr);
 
 	mutex_lock(&wl->mutex);
-	if (wl->vif) {
-		wl1271_debug(DEBUG_MAC80211,
-			     "multiple vifs are not supported yet");
-		ret = -EBUSY;
-		goto out;
-	}
-
 	/*
 	 * in some very corner case HW recovery scenarios its possible to
 	 * get here before __wl1271_op_remove_interface is complete, so
@@ -2140,7 +2132,6 @@ static int wl1271_op_add_interface(struct ieee80211_hw *hw,
 	if (ret < 0)
 		goto out;
 
-	wl->vif = vif;
 	list_add(&wlvif->list, &wl->wlvif_list);
 out:
 	mutex_unlock(&wl->mutex);
@@ -4909,7 +4900,6 @@ struct ieee80211_hw *wl1271_alloc_hw(void)
 	}
 
 	wl->rx_counter = 0;
-	wl->vif = NULL;
 	wl->flags = 0;
 	wl->sg_enabled = true;
 	wl->hw_pg_ver = -1;
