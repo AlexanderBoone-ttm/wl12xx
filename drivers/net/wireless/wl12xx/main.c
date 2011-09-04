@@ -379,6 +379,7 @@ static bool bug_on_recovery;
 static void __wl1271_op_remove_interface(struct wl1271 *wl,
 					 struct ieee80211_vif *vif,
 					 bool reset_tx_queues);
+static void wl1271_op_stop(struct ieee80211_hw *hw);
 static void wl1271_free_ap_keys(struct wl1271 *wl, struct wl12xx_vif *wlvif);
 
 
@@ -1220,7 +1221,7 @@ static void wl1271_recovery_work(struct work_struct *work)
 	mutex_lock(&wl->mutex);
 
 	if (wl->state != WL1271_STATE_ON)
-		goto out;
+		goto out_unlock;
 
 	/* Avoid a recursive recovery */
 	set_bit(WL1271_FLAG_RECOVERY_IN_PROGRESS, &wl->flags);
@@ -1259,6 +1260,8 @@ static void wl1271_recovery_work(struct work_struct *work)
 		vif = wl12xx_wlvif_to_vif(wlvif);
 		__wl1271_op_remove_interface(wl, vif, false);
 	}
+	mutex_unlock(&wl->mutex);
+	wl1271_op_stop(wl->hw);
 
 	clear_bit(WL1271_FLAG_RECOVERY_IN_PROGRESS, &wl->flags);
 
@@ -1269,8 +1272,8 @@ static void wl1271_recovery_work(struct work_struct *work)
 	 * to restart the HW.
 	 */
 	ieee80211_wake_queues(wl->hw);
-
-out:
+	return;
+out_unlock:
 	mutex_unlock(&wl->mutex);
 }
 
@@ -1848,7 +1851,7 @@ static void wl1271_op_stop(struct ieee80211_hw *hw)
 	cancel_delayed_work_sync(&wl->elp_work);
 
 	wl1271_tx_reset(wl, true);
-	mutex_lock(&wl->mutex);
+	//mutex_lock(&wl->mutex);
 
 	/* let's notify MAC80211 about the remaining pending TX frames */
 	wl1271_power_off(wl);
@@ -1894,7 +1897,7 @@ static void wl1271_op_stop(struct ieee80211_hw *hw)
 	kfree(wl->target_mem_map);
 	wl->target_mem_map = NULL;
 
-	mutex_unlock(&wl->mutex);
+	//mutex_unlock(&wl->mutex);
 }
 
 static u8 wl12xx_get_role_type(struct wl1271 *wl, struct wl12xx_vif *wlvif)
