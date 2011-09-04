@@ -136,6 +136,7 @@ extern u32 wl12xx_debug_level;
 
 #define WL1271_DEFAULT_BEACON_INT  100
 #define WL1271_DEFAULT_DTIM_PERIOD 1
+#define WL1271_DEFAULT_CHANNEL 0
 
 #define WL12XX_MAX_ROLES           4
 #define WL12XX_MAX_LINKS           12
@@ -387,7 +388,6 @@ struct wl1271 {
 	s8 hw_pg_ver;
 
 	u8 mac_addr[ETH_ALEN];
-	int channel;
 	u8 system_hlid;
 
 	unsigned long links_map[BITS_TO_LONGS(WL12XX_MAX_LINKS)];
@@ -585,6 +585,7 @@ struct wl12xx_vif {
 
 	/* The current band */
 	enum ieee80211_band band;
+	int channel;
 
 	u32 bitrate_masks[IEEE80211_NUM_BANDS];
 	u32 basic_rate_set;

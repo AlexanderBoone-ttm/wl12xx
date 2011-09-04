@@ -1960,6 +1960,7 @@ static int wl12xx_init_vif_data(struct wl1271 *wl, struct ieee80211_vif *vif)
 	wlvif->rate_set = CONF_TX_RATE_MASK_BASIC;
 	wlvif->beacon_int = WL1271_DEFAULT_BEACON_INT;
 	wlvif->band = IEEE80211_BAND_2GHZ;
+	wlvif->channel = WL1271_DEFAULT_CHANNEL;
 
 	INIT_WORK(&wlvif->rx_streaming_enable_work,
 		  wl1271_rx_streaming_enable_work);
@@ -2403,7 +2404,7 @@ static int wl1271_op_config(struct ieee80211_hw *hw, u32 changed)
 		/* we support configuring the channel and band while off */
 		if ((changed & IEEE80211_CONF_CHANGE_CHANNEL)) {
 			wlvif->band = conf->channel->band;
-			wl->channel = channel;
+			wlvif->channel = channel;
 		}
 
 		if ((changed & IEEE80211_CONF_CHANGE_POWER))
@@ -2421,11 +2422,11 @@ static int wl1271_op_config(struct ieee80211_hw *hw, u32 changed)
 	/* if the channel changes while joined, join again */
 	if (changed & IEEE80211_CONF_CHANGE_CHANNEL &&
 	    ((wlvif->band != conf->channel->band) ||
-	     (wl->channel != channel))) {
+	     (wlvif->channel != channel))) {
 		/* send all pending packets */
 		wl1271_tx_work_locked(wl);
 		wlvif->band = conf->channel->band;
-		wl->channel = channel;
+		wlvif->channel = channel;
 
 		if (!is_ap) {
 			/*
@@ -4818,8 +4819,6 @@ int wl1271_init_ieee80211(struct wl1271 *wl)
 }
 EXPORT_SYMBOL_GPL(wl1271_init_ieee80211);
 
-#define WL1271_DEFAULT_CHANNEL 0
-
 struct ieee80211_hw *wl1271_alloc_hw(void)
 {
 	struct ieee80211_hw *hw;
@@ -4872,7 +4871,6 @@ struct ieee80211_hw *wl1271_alloc_hw(void)
 		goto err_hw;
 	}
 
-	wl->channel = WL1271_DEFAULT_CHANNEL;
 	wl->rx_counter = 0;
 	wl->power_level = WL1271_DEFAULT_POWER_LEVEL;
 	wl->vif = NULL;
