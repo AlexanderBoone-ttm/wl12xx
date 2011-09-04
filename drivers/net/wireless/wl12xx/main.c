@@ -779,7 +779,9 @@ static int wl1271_plt_init(struct wl1271 *wl)
 	return ret;
 }
 
-static void wl12xx_irq_ps_regulate_link(struct wl1271 *wl, u8 hlid, u8 tx_pkts)
+static void wl12xx_irq_ps_regulate_link(struct wl1271 *wl,
+					struct wl12xx_vif *wlvif,
+					u8 hlid, u8 tx_pkts)
 {
 	bool fw_ps, single_sta;
 
@@ -791,7 +793,7 @@ static void wl12xx_irq_ps_regulate_link(struct wl1271 *wl, u8 hlid, u8 tx_pkts)
 	 * packets in FW or if the STA is awake.
 	 */
 	if (!fw_ps || tx_pkts < WL1271_PS_STA_MAX_PACKETS)
-		wl1271_ps_link_end(wl, hlid);
+		wl12xx_ps_link_end(wl, wlvif, hlid);
 
 	/*
 	 * Start high-level PS if the STA is asleep with enough blocks in FW.
@@ -799,7 +801,7 @@ static void wl12xx_irq_ps_regulate_link(struct wl1271 *wl, u8 hlid, u8 tx_pkts)
 	 * case FW-memory congestion is not a problem.
 	 */
 	else if (!single_sta && fw_ps && tx_pkts >= WL1271_PS_STA_MAX_PACKETS)
-		wl1271_ps_link_start(wl, hlid, true);
+		wl12xx_ps_link_start(wl, wlvif, hlid, true);
 }
 
 static void wl12xx_irq_update_links_status(struct wl1271 *wl,
@@ -829,7 +831,8 @@ static void wl12xx_irq_update_links_status(struct wl1271 *wl,
 		lnk->prev_freed_pkts = status->tx_lnk_free_pkts[hlid];
 		lnk->allocated_pkts -= cnt;
 
-		wl12xx_irq_ps_regulate_link(wl, hlid, lnk->allocated_pkts);
+		wl12xx_irq_ps_regulate_link(wl, wlvif, hlid,
+					    lnk->allocated_pkts);
 	}
 }
 
