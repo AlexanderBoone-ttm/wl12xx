@@ -2069,7 +2069,7 @@ static int wl1271_op_add_interface(struct ieee80211_hw *hw,
 	 * get here before __wl1271_op_remove_interface is complete, so
 	 * opt out if that is the case.
 	 */
-	if (test_bit(WL1271_FLAG_IF_INITIALIZED, &wl->flags)) {
+	if (test_bit(WL1271_FLAG_RECOVERY_IN_PROGRESS, &wl->flags)) {
 		ret = -EBUSY;
 		goto out;
 	}
@@ -2129,7 +2129,6 @@ static int wl1271_op_add_interface(struct ieee80211_hw *hw,
 
 	wl->vif = vif;
 	list_add(&wlvif->list, &wl->wlvif_list);
-	set_bit(WL1271_FLAG_IF_INITIALIZED, &wl->flags);
 out:
 	mutex_unlock(&wl->mutex);
 
