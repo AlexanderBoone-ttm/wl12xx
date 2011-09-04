@@ -1841,7 +1841,6 @@ static void wl1271_op_stop(struct ieee80211_hw *hw)
 	wl1271_power_off(wl);
 
 	wl->rx_counter = 0;
-	wl->power_level = WL1271_DEFAULT_POWER_LEVEL;
 	wl->tx_blocks_available = 0;
 	wl->tx_allocated_blocks = 0;
 	wl->tx_results_count = 0;
@@ -1961,6 +1960,7 @@ static int wl12xx_init_vif_data(struct wl1271 *wl, struct ieee80211_vif *vif)
 	wlvif->beacon_int = WL1271_DEFAULT_BEACON_INT;
 	wlvif->band = IEEE80211_BAND_2GHZ;
 	wlvif->channel = WL1271_DEFAULT_CHANNEL;
+	wlvif->power_level = WL1271_DEFAULT_POWER_LEVEL;
 
 	INIT_WORK(&wlvif->rx_streaming_enable_work,
 		  wl1271_rx_streaming_enable_work);
@@ -2408,7 +2408,7 @@ static int wl1271_op_config(struct ieee80211_hw *hw, u32 changed)
 		}
 
 		if ((changed & IEEE80211_CONF_CHANGE_POWER))
-			wl->power_level = conf->power_level;
+			wlvif->power_level = conf->power_level;
 
 		goto out;
 	}
@@ -2522,12 +2522,12 @@ static int wl1271_op_config(struct ieee80211_hw *hw, u32 changed)
 						 wlvif->basic_rate, true);
 	}
 
-	if (conf->power_level != wl->power_level) {
+	if (conf->power_level != wlvif->power_level) {
 		ret = wl1271_acx_tx_power(wl, wlvif, conf->power_level);
 		if (ret < 0)
 			goto out_sleep;
 
-		wl->power_level = conf->power_level;
+		wlvif->power_level = conf->power_level;
 	}
 
 out_sleep:
@@ -4872,7 +4872,6 @@ struct ieee80211_hw *wl1271_alloc_hw(void)
 	}
 
 	wl->rx_counter = 0;
-	wl->power_level = WL1271_DEFAULT_POWER_LEVEL;
 	wl->vif = NULL;
 	wl->flags = 0;
 	wl->sg_enabled = true;

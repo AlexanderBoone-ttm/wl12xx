@@ -478,9 +478,6 @@ struct wl1271 {
 	struct completion *elp_compl;
 	struct delayed_work elp_work;
 
-	/* in dBm */
-	int power_level;
-
 	struct wl1271_stats stats;
 
 	__le32 buffer_32;
@@ -633,6 +630,9 @@ struct wl12xx_vif {
 
 	/* retry counter for PSM entries */
 	u8 psm_entry_retry;
+
+	/* in dBm */
+	int power_level;
 
 	int rssi_thold;
 	int last_rssi_event;
