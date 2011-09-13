@@ -1171,6 +1171,11 @@ enum sta_notify_cmd {
  * @IEEE80211_HW_SCAN_WHILE_IDLE: The device can do hw scan while
  *	being idle (i.e. mac80211 doesn't have to go idle-off during the
  *	the scan).
+ *
+ * @IEEE80211_HW_SUPPORTS_CANCEL_SCAN: Hardware supports cancel scan operation.
+ *
+ * @IEEE80211_HW_SUPPORTS_IM_SCAN_EVENT: Hardware supports intemediate scan
+ *	event.
  */
 enum ieee80211_hw_flags {
 	IEEE80211_HW_HAS_RATE_CONTROL			= 1<<0,
@@ -1198,6 +1203,8 @@ enum ieee80211_hw_flags {
 	IEEE80211_HW_AP_LINK_PS				= 1<<22,
 	IEEE80211_HW_TX_AMPDU_SETUP_IN_HW		= 1<<23,
 	IEEE80211_HW_SCAN_WHILE_IDLE			= 1<<24,
+	IEEE80211_HW_SUPPORTS_CANCEL_SCAN		= 1<<25,
+	IEEE80211_HW_SUPPORTS_IM_SCAN_EVENT		= 1<<26,
 };
 
 /**
