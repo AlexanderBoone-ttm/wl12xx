@@ -2101,6 +2101,10 @@ static int wl1271_op_add_interface(struct ieee80211_hw *hw,
 		     ieee80211_vif_type_p2p(vif), vif->addr);
 
 	mutex_lock(&wl->mutex);
+	ret = wl1271_ps_elp_wakeup(wl);
+	if (ret < 0)
+		goto out_unlock;
+
 	/*
 	 * in some very corner case HW recovery scenarios its possible to
 	 * get here before __wl1271_op_remove_interface is complete, so
@@ -2166,6 +2170,8 @@ static int wl1271_op_add_interface(struct ieee80211_hw *hw,
 
 	list_add(&wlvif->list, &wl->wlvif_list);
 out:
+	wl1271_ps_elp_sleep(wl);
+out_unlock:
 	mutex_unlock(&wl->mutex);
 
 	mutex_lock(&wl_list_mutex);
