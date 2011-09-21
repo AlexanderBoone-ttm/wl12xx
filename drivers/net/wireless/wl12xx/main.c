@@ -1948,6 +1948,8 @@ static u8 wl12xx_get_role_type(struct wl1271 *wl, struct wl12xx_vif *wlvif)
 static int wl12xx_init_vif_data(struct wl1271 *wl, struct ieee80211_vif *vif)
 {
 	struct wl12xx_vif *wlvif = wl12xx_vif_to_data(vif);
+	struct wl12xx_vif *other_wlvif;
+	bool vif_found = false;
 	int i;
 
 	/* make sure wlvif is zeroed */
@@ -2002,9 +2004,25 @@ static int wl12xx_init_vif_data(struct wl1271 *wl, struct ieee80211_vif *vif)
 	wlvif->basic_rate = CONF_TX_RATE_MASK_BASIC;
 	wlvif->rate_set = CONF_TX_RATE_MASK_BASIC;
 	wlvif->beacon_int = WL1271_DEFAULT_BEACON_INT;
-	wlvif->band = IEEE80211_BAND_2GHZ;
-	wlvif->channel = WL1271_DEFAULT_CHANNEL;
-	wlvif->power_level = WL1271_DEFAULT_POWER_LEVEL;
+
+	/*
+	 * mac80211 configures some values globally, while we treat them
+	 * per-interface. thus, on init, we have to copy them from another
+	 * interface (or save them globally...)
+	 */
+	wl12xx_for_each_wlvif(wl, other_wlvif) {
+		vif_found = true;
+		break;
+	}
+	if (vif_found) {
+		wlvif->band = other_wlvif->band;
+		wlvif->channel = other_wlvif->channel;
+		wlvif->power_level = other_wlvif->power_level;
+	} else {
+		wlvif->band = IEEE80211_BAND_2GHZ;
+		wlvif->channel = WL1271_DEFAULT_CHANNEL;
+		wlvif->power_level = WL1271_DEFAULT_POWER_LEVEL;
+	}
 
 	INIT_WORK(&wlvif->rx_streaming_enable_work,
 		  wl1271_rx_streaming_enable_work);
