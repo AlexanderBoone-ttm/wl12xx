@@ -1828,6 +1828,7 @@ static void wl1271_op_stop(struct ieee80211_hw *hw)
 	cancel_work_sync(&wl->rx_streaming_disable_work);
 	cancel_delayed_work_sync(&wl->elp_work);
 
+	wl1271_tx_reset(wl, true);
 	mutex_lock(&wl->mutex);
 
 	/* let's notify MAC80211 about the remaining pending TX frames */
@@ -2178,7 +2179,7 @@ deinit:
 	wlvif->ap.bcast_hlid = WL12XX_INVALID_LINK_ID;
 	wlvif->ap.global_hlid = WL12XX_INVALID_LINK_ID;
 
-	wl1271_tx_reset(wl, wlvif, reset_tx_queues);
+	wl1271_tx_reset_wlvif(wl, wlvif);
 	wl1271_free_ap_keys(wl, wlvif);
 	memset(wlvif->ap.sta_hlid_map, 0, sizeof(wlvif->ap.sta_hlid_map));
 	wlvif->role_id = WL12XX_INVALID_ROLE_ID;

@@ -887,12 +887,9 @@ void wl1271_tx_reset_link_queues(struct wl1271 *wl, u8 hlid)
 }
 
 /* caller must hold wl->mutex and TX must be stopped */
-void wl1271_tx_reset(struct wl1271 *wl, struct wl12xx_vif *wlvif,
-		     bool reset_tx_queues)
+void wl1271_tx_reset_wlvif(struct wl1271 *wl, struct wl12xx_vif *wlvif)
 {
 	int i;
-	struct sk_buff *skb;
-	struct ieee80211_tx_info *info;
 
 	/* TX failure */
 	for_each_set_bit(i, wlvif->links_map, WL12XX_MAX_LINKS) {
@@ -906,6 +903,14 @@ void wl1271_tx_reset(struct wl1271 *wl, struct wl12xx_vif *wlvif,
 		wl->links[i].prev_freed_pkts = 0;
 	}
 	wlvif->last_tx_hlid = 0;
+
+}
+/* caller must hold wl->mutex and TX must be stopped */
+void wl1271_tx_reset(struct wl1271 *wl, bool reset_tx_queues)
+{
+	int i;
+	struct sk_buff *skb;
+	struct ieee80211_tx_info *info;
 
 	for (i = 0; i < NUM_TX_QUEUES; i++)
 		wl->tx_queue_count[i] = 0;
