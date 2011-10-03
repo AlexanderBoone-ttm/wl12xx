@@ -1097,10 +1097,11 @@ out:
 int wl1271_cmd_build_ps_poll(struct wl1271 *wl, struct wl12xx_vif *wlvif,
 			     u16 aid)
 {
+	struct ieee80211_vif *vif = wl12xx_wlvif_to_vif(wlvif);
 	struct sk_buff *skb;
 	int ret = 0;
 
-	skb = ieee80211_pspoll_get(wl->hw, wl->vif);
+	skb = ieee80211_pspoll_get(wl->hw, vif);
 	if (!skb)
 		goto out;
 
