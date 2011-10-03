@@ -654,7 +654,8 @@ out:
 int wl12xx_cmd_role_start_ap(struct wl1271 *wl, struct wl12xx_vif *wlvif)
 {
 	struct wl12xx_cmd_role_start *cmd;
-	struct ieee80211_bss_conf *bss_conf = &wl->vif->bss_conf;
+	struct ieee80211_vif *vif = wl12xx_wlvif_to_vif(wlvif);
+	struct ieee80211_bss_conf *bss_conf = &vif->bss_conf;
 	int ret;
 
 	wl1271_debug(DEBUG_CMD, "cmd role start ap %d", wlvif->role_id);
