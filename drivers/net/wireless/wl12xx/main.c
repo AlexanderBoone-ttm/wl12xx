@@ -836,8 +836,7 @@ static void wl12xx_irq_update_links_status(struct wl1271 *wl,
 static void wl12xx_fw_status(struct wl1271 *wl,
 			     struct wl12xx_fw_status *status)
 {
-	struct ieee80211_vif *vif = wl->vif; /* TODO: get as param */
-	struct wl12xx_vif *wlvif = wl12xx_vif_to_data(vif);
+	struct wl12xx_vif *wlvif;
 	struct timespec ts;
 	u32 old_tx_blk_count = wl->tx_blocks_available;
 	int avail, freed_blocks;
@@ -892,8 +891,9 @@ static void wl12xx_fw_status(struct wl1271 *wl,
 		clear_bit(WL1271_FLAG_FW_TX_BUSY, &wl->flags);
 
 	/* for AP update num of allocated TX blocks per link and ps status */
-	if (wlvif->bss_type == BSS_TYPE_AP_BSS)
+	wl12xx_for_each_wlvif_ap(wl, wlvif) {
 		wl12xx_irq_update_links_status(wl, wlvif, status);
+	}
 
 	/* update the host-chipset time offset */
 	getnstimeofday(&ts);
@@ -1212,6 +1212,7 @@ static void wl1271_recovery_work(struct work_struct *work)
 	struct wl1271 *wl =
 		container_of(work, struct wl1271, recovery_work);
 	struct wl12xx_vif *wlvif;
+	struct ieee80211_vif *vif;
 
 	mutex_lock(&wl->mutex);
 
@@ -1249,7 +1250,12 @@ static void wl1271_recovery_work(struct work_struct *work)
 	}
 
 	/* reboot the chipset */
-	__wl1271_op_remove_interface(wl, wl->vif, false);
+	while (!list_empty(&wl->wlvif_list)) {
+		wlvif = list_first_entry(&wl->wlvif_list,
+				       struct wl12xx_vif, list);
+		vif = wl12xx_wlvif_to_vif(wlvif);
+		__wl1271_op_remove_interface(wl, vif, false);
+	}
 
 	clear_bit(WL1271_FLAG_RECOVERY_IN_PROGRESS, &wl->flags);
 
@@ -1721,18 +1727,19 @@ static int wl1271_op_suspend(struct ieee80211_hw *hw,
 			    struct cfg80211_wowlan *wow)
 {
 	struct wl1271 *wl = hw->priv;
-	struct ieee80211_vif *vif = wl->vif; /* TODO: get as param */
-	struct wl12xx_vif *wlvif = wl12xx_vif_to_data(vif);
+	struct wl12xx_vif *wlvif;
 	int ret;
 
 	wl1271_debug(DEBUG_MAC80211, "mac80211 suspend wow=%d", !!wow);
 	WARN_ON(!wow || !wow->any);
 
 	wl->wow_enabled = true;
-	ret = wl1271_configure_suspend(wl, wlvif);
-	if (ret < 0) {
-		wl1271_warning("couldn't prepare device to suspend");
-		return ret;
+	wl12xx_for_each_wlvif(wl, wlvif) {
+		ret = wl1271_configure_suspend(wl, wlvif);
+		if (ret < 0) {
+			wl1271_warning("couldn't prepare device to suspend");
+			return ret;
+		}
 	}
 	/* flush any remaining work */
 	wl1271_debug(DEBUG_MAC80211, "flushing remaining works");
@@ -1751,7 +1758,9 @@ static int wl1271_op_suspend(struct ieee80211_hw *hw,
 
 	wl1271_enable_interrupts(wl);
 	flush_work(&wl->tx_work);
-	flush_delayed_work(&wlvif->pspoll_work);
+	wl12xx_for_each_wlvif(wl, wlvif) {
+		flush_delayed_work(&wlvif->pspoll_work);
+	}
 	flush_delayed_work(&wl->elp_work);
 
 	return 0;
@@ -1760,8 +1769,7 @@ static int wl1271_op_suspend(struct ieee80211_hw *hw,
 static int wl1271_op_resume(struct ieee80211_hw *hw)
 {
 	struct wl1271 *wl = hw->priv;
-	struct ieee80211_vif *vif = wl->vif; /* TODO: get as param */
-	struct wl12xx_vif *wlvif = wl12xx_vif_to_data(vif);
+	struct wl12xx_vif *wlvif;
 	unsigned long flags;
 	bool run_irq_work = false;
 
@@ -1785,7 +1793,9 @@ static int wl1271_op_resume(struct ieee80211_hw *hw)
 		wl1271_irq(0, wl);
 		wl1271_enable_interrupts(wl);
 	}
-	wl1271_configure_resume(wl, wlvif);
+	wl12xx_for_each_wlvif(wl, wlvif) {
+		wl1271_configure_resume(wl, wlvif);
+	}
 	wl->wow_enabled = false;
 
 	return 0;
@@ -2214,16 +2224,22 @@ static void wl1271_op_remove_interface(struct ieee80211_hw *hw,
 				       struct ieee80211_vif *vif)
 {
 	struct wl1271 *wl = hw->priv;
+	struct wl12xx_vif *wlvif = wl12xx_vif_to_data(vif);
+	struct wl12xx_vif *iter;
 
 	mutex_lock(&wl->mutex);
 	/*
 	 * wl->vif can be null here if someone shuts down the interface
 	 * just when hardware recovery has been started.
 	 */
-	if (wl->vif) {
-		WARN_ON(wl->vif != vif);
+	wl12xx_for_each_wlvif(wl, iter) {
+		if (iter != wlvif)
+			continue;
+
 		__wl1271_op_remove_interface(wl, vif, true);
+		break;
 	}
+	WARN_ON(iter != wlvif);
 
 	mutex_unlock(&wl->mutex);
 	cancel_work_sync(&wl->recovery_work);
@@ -2605,8 +2621,7 @@ static void wl1271_op_configure_filter(struct ieee80211_hw *hw,
 {
 	struct wl1271_filter_params *fp = (void *)(unsigned long)multicast;
 	struct wl1271 *wl = hw->priv;
-	struct ieee80211_vif *vif = wl->vif; /* TODO: get as param */
-	struct wl12xx_vif *wlvif = wl12xx_vif_to_data(vif);
+	struct wl12xx_vif *wlvif;
 
 	int ret;
 
@@ -2625,17 +2640,20 @@ static void wl1271_op_configure_filter(struct ieee80211_hw *hw,
 	if (ret < 0)
 		goto out;
 
-	if (wlvif->bss_type != BSS_TYPE_AP_BSS) {
-		if (*total & FIF_ALLMULTI)
-			ret = wl1271_acx_group_address_tbl(wl, wlvif, false,
-							   NULL, 0);
-		else if (fp)
-			ret = wl1271_acx_group_address_tbl(wl, wlvif,
-							   fp->enabled,
-							   fp->mc_list,
-							   fp->mc_list_length);
-		if (ret < 0)
-			goto out_sleep;
+	wl12xx_for_each_wlvif(wl, wlvif) {
+		if (wlvif->bss_type != BSS_TYPE_AP_BSS) {
+			if (*total & FIF_ALLMULTI)
+				ret = wl1271_acx_group_address_tbl(wl, wlvif,
+								   false,
+								   NULL, 0);
+			else if (fp)
+				ret = wl1271_acx_group_address_tbl(wl, wlvif,
+							fp->enabled,
+							fp->mc_list,
+							fp->mc_list_length);
+			if (ret < 0)
+				goto out_sleep;
+		}
 	}
 
 	/*
@@ -3125,8 +3143,7 @@ out:
 static int wl1271_op_set_rts_threshold(struct ieee80211_hw *hw, u32 value)
 {
 	struct wl1271 *wl = hw->priv;
-	struct ieee80211_vif *vif = wl->vif;
-	struct wl12xx_vif *wlvif = wl12xx_vif_to_data(vif);
+	struct wl12xx_vif *wlvif;
 	int ret = 0;
 
 	mutex_lock(&wl->mutex);
@@ -3140,10 +3157,11 @@ static int wl1271_op_set_rts_threshold(struct ieee80211_hw *hw, u32 value)
 	if (ret < 0)
 		goto out;
 
-	ret = wl1271_acx_rts_threshold(wl, wlvif, value);
-	if (ret < 0)
-		wl1271_warning("wl1271_op_set_rts_threshold failed: %d", ret);
-
+	wl12xx_for_each_wlvif(wl, wlvif) {
+		ret = wl1271_acx_rts_threshold(wl, wlvif, value);
+		if (ret < 0)
+			wl1271_warning("set rts threshold failed: %d", ret);
+	}
 	wl1271_ps_elp_sleep(wl);
 
 out:
