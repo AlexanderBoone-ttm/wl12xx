@@ -183,11 +183,13 @@ static void wl1271_event_rssi_trigger(struct wl1271 *wl,
 
 static void wl1271_stop_ba_event(struct wl1271 *wl, struct wl12xx_vif *wlvif)
 {
+	struct ieee80211_vif *vif = wl12xx_wlvif_to_vif(wlvif);
+
 	if (wlvif->bss_type != BSS_TYPE_AP_BSS) {
 		if (!wlvif->sta.ba_rx_bitmap)
 			return;
-		ieee80211_stop_rx_ba_session(wl->vif, wlvif->sta.ba_rx_bitmap,
-					     wl->vif->bss_conf.bssid);
+		ieee80211_stop_rx_ba_session(vif, wlvif->sta.ba_rx_bitmap,
+					     vif->bss_conf.bssid);
 	} else {
 		u8 hlid;
 		struct wl1271_link *lnk;
@@ -197,7 +199,7 @@ static void wl1271_stop_ba_event(struct wl1271 *wl, struct wl12xx_vif *wlvif)
 			if (!lnk->ba_bitmap)
 				continue;
 
-			ieee80211_stop_rx_ba_session(wl->vif,
+			ieee80211_stop_rx_ba_session(vif,
 						     lnk->ba_bitmap,
 						     lnk->addr);
 		}
@@ -299,7 +301,7 @@ static int wl1271_event_process(struct wl1271 *wl, struct event_mailbox *mbox)
 
 	if (vector & RSSI_SNR_TRIGGER_0_EVENT_ID) {
 		wl1271_debug(DEBUG_EVENT, "RSSI_SNR_TRIGGER_0_EVENT");
-		if (wl->vif)
+		if (vif)
 			wl1271_event_rssi_trigger(wl, vif, mbox);
 	}
 
@@ -309,13 +311,13 @@ static int wl1271_event_process(struct wl1271 *wl, struct event_mailbox *mbox)
 
 		wlvif->ba_allowed = !!mbox->rx_ba_allowed;
 
-		if (wl->vif && !wlvif->ba_allowed)
+		if (vif && !wlvif->ba_allowed)
 			wl1271_stop_ba_event(wl, wlvif);
 	}
 
 	if ((vector & DUMMY_PACKET_EVENT_ID)) {
 		wl1271_debug(DEBUG_EVENT, "DUMMY_PACKET_ID_EVENT_ID");
-		if (wl->vif)
+		if (vif)
 			wl1271_tx_dummy_packet(wl);
 	}
 
@@ -348,7 +350,7 @@ static int wl1271_event_process(struct wl1271 *wl, struct event_mailbox *mbox)
 			addr = wl->links[h].addr;
 
 			rcu_read_lock();
-			sta = ieee80211_find_sta(wl->vif, addr);
+			sta = ieee80211_find_sta(vif, addr);
 			if (sta) {
 				wl1271_debug(DEBUG_EVENT, "remove sta %d", h);
 				ieee80211_report_low_ack(sta, num_packets);
@@ -357,8 +359,8 @@ static int wl1271_event_process(struct wl1271 *wl, struct event_mailbox *mbox)
 		}
 	}
 
-	if (wl->vif && beacon_loss)
-		ieee80211_connection_loss(wl->vif);
+	if (vif && beacon_loss)
+		ieee80211_connection_loss(vif);
 
 	return 0;
 }
