@@ -29,6 +29,7 @@
 #include "debug.h"
 #include "acx.h"
 #include "reg.h"
+#include "ps.h"
 
 #define WL1271_TM_MAX_DATA_LENGTH 1024
 
@@ -88,7 +89,14 @@ static int wl1271_tm_cmd_test(struct wl1271 *wl, struct nlattr *tb[])
 		return -EMSGSIZE;
 
 	mutex_lock(&wl->mutex);
+	ret = wl1271_ps_elp_wakeup(wl);
+	if (ret < 0)
+		return ret;
+
 	ret = wl1271_cmd_test(wl, buf, buf_len, answer);
+
+	wl1271_ps_elp_sleep(wl);
+
 	mutex_unlock(&wl->mutex);
 
 	if (ret < 0) {
