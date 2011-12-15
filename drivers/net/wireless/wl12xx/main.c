@@ -2190,6 +2190,9 @@ static void __wl1271_op_remove_interface(struct wl1271 *wl,
 			goto deinit;
 
 		if (wlvif->bss_type == BSS_TYPE_STA_BSS) {
+			if (wl12xx_dev_role_started(wlvif))
+				wl12xx_stop_dev(wl, wlvif);
+
 			ret = wl12xx_cmd_role_disable(wl, &wlvif->dev_role_id);
 			if (ret < 0)
 				goto deinit;
