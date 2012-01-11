@@ -945,7 +945,11 @@ void ieee80211_sta_expire(struct ieee80211_sub_if_data *sdata,
 	struct sta_info *sta, *tmp;
 
 	mutex_lock(&local->sta_mtx);
-	list_for_each_entry_safe(sta, tmp, &local->sta_list, list)
+
+	list_for_each_entry_safe(sta, tmp, &local->sta_list, list) {
+		if (sdata != sta->sdata)
+			continue;
+
 		if (time_after(jiffies, sta->last_rx + exp_time)) {
 #ifdef CONFIG_MAC80211_IBSS_DEBUG
 			printk(KERN_DEBUG "%s: expiring inactive STA %pM\n",
@@ -953,6 +957,8 @@ void ieee80211_sta_expire(struct ieee80211_sub_if_data *sdata,
 #endif
 			WARN_ON(__sta_info_destroy(sta));
 		}
+	}
+
 	mutex_unlock(&local->sta_mtx);
 }
 
