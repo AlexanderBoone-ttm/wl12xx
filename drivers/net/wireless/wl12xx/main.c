@@ -1468,8 +1468,6 @@ int wl1271_plt_stop(struct wl1271 *wl)
 		goto out;
 	}
 
-	wl1271_power_off(wl);
-
 	wl->state = WL1271_STATE_OFF;
 	wl->plt = false;
 	wl->rx_counter = 0;
@@ -1480,6 +1478,11 @@ int wl1271_plt_stop(struct wl1271 *wl)
 	wl1271_flush_deferred_work(wl);
 	cancel_work_sync(&wl->netstack_work);
 	cancel_work_sync(&wl->recovery_work);
+
+	mutex_lock(&wl->mutex);
+	wl1271_power_off(wl);
+	mutex_unlock(&wl->mutex);
+
 out:
 	return ret;
 }
