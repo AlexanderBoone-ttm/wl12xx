@@ -1460,9 +1460,8 @@ static void wl1271_op_tx(struct ieee80211_hw *hw, struct sk_buff *skb)
 	mapping = skb_get_queue_mapping(skb);
 	q = wl1271_tx_get_queue(mapping);
 
-	hlid = wl12xx_tx_get_hlid(wl, wlvif, skb);
-
 	spin_lock_irqsave(&wl->wl_lock, flags);
+	hlid = wl12xx_tx_get_hlid(wl, wlvif, skb);
 
 	/* queue the packet */
 	if (hlid == WL12XX_INVALID_LINK_ID ||
