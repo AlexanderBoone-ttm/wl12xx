@@ -531,6 +531,9 @@ struct wl1271 {
 
 	/* work to fire when Tx is stuck */
 	struct delayed_work tx_watchdog_work;
+
+	/* RX Data filter rule status - enabled/disabled */
+	bool rx_data_filters_status[WL1271_MAX_RX_DATA_FILTERS];
 };
 
 struct wl1271_station {
