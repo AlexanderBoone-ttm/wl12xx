@@ -524,6 +524,9 @@ struct wl1271 {
 
 	/* last wlvif we transmitted from */
 	struct wl12xx_vif *last_wlvif;
+
+	/* RX Data filter rule status - enabled/disabled */
+	bool rx_data_filters_status[WL1271_MAX_RX_DATA_FILTERS];
 };
 
 struct wl1271_station {
