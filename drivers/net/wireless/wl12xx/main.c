@@ -993,16 +993,29 @@ out:
 	return IRQ_HANDLED;
 }
 
-static int wl1271_fetch_firmware(struct wl1271 *wl)
+static int wl12xx_fetch_firmware(struct wl1271 *wl, bool plt)
 {
 	const struct firmware *fw;
 	const char *fw_name;
+	enum wl12xx_fw_type fw_type;
 	int ret;
 
-	if (wl->chip.id == CHIP_ID_1283_PG20)
-		fw_name = WL128X_FW_NAME;
-	else
-		fw_name	= WL127X_FW_NAME;
+	if (plt) {
+		fw_type = WL12XX_FW_TYPE_PLT;
+		if (wl->chip.id == CHIP_ID_1283_PG20)
+			fw_name = WL128X_PLT_FW_NAME;
+		else
+			fw_name	= WL127X_PLT_FW_NAME;
+	} else {
+		fw_type = WL12XX_FW_TYPE_NORMAL;
+		if (wl->chip.id == CHIP_ID_1283_PG20)
+			fw_name = WL128X_FW_NAME;
+		else
+			fw_name	= WL127X_FW_NAME;
+	}
+
+	if (wl->fw_type == fw_type)
+		return 0;
 
 	wl1271_debug(DEBUG_BOOT, "booting firmware %s", fw_name);
 
@@ -1021,6 +1034,7 @@ static int wl1271_fetch_firmware(struct wl1271 *wl)
 	}
 
 	vfree(wl->fw);
+	wl->fw_type = WL12XX_FW_TYPE_NONE;
 	wl->fw_len = fw->size;
 	wl->fw = vmalloc(wl->fw_len);
 
@@ -1032,7 +1046,7 @@ static int wl1271_fetch_firmware(struct wl1271 *wl)
 
 	memcpy(wl->fw, fw->data, wl->fw_len);
 	ret = 0;
-
+	wl->fw_type = fw_type;
 out:
 	release_firmware(fw);
 
@@ -1160,7 +1174,7 @@ static void wl1271_recovery_work(struct work_struct *work)
 
 	mutex_lock(&wl->mutex);
 
-	if (wl->state != WL1271_STATE_ON)
+	if (wl->state != WL1271_STATE_ON || wl->plt)
 		goto out_unlock;
 
 	/* Avoid a recursive recovery */
@@ -1240,7 +1254,7 @@ static int wl1271_setup(struct wl1271 *wl)
 	return 0;
 }
 
-static int wl1271_chip_wakeup(struct wl1271 *wl)
+static int wl12xx_chip_wakeup(struct wl1271 *wl, bool plt)
 {
 	struct wl1271_partition_set partition;
 	int ret = 0;
@@ -1315,11 +1329,9 @@ static int wl1271_chip_wakeup(struct wl1271 *wl)
 		goto out;
 	}
 
-	if (wl->fw == NULL) {
-		ret = wl1271_fetch_firmware(wl);
-		if (ret < 0)
-			goto out;
-	}
+	ret = wl12xx_fetch_firmware(wl, plt);
+	if (ret < 0)
+		goto out;
 
 	/* No NVS from netlink, try to get it from the filesystem */
 	if (wl->nvs == NULL) {
@@ -1351,7 +1363,7 @@ int wl1271_plt_start(struct wl1271 *wl)
 
 	while (retries) {
 		retries--;
-		ret = wl1271_chip_wakeup(wl);
+		ret = wl12xx_chip_wakeup(wl, true);
 		if (ret < 0)
 			goto power_off;
 
@@ -1363,7 +1375,8 @@ int wl1271_plt_start(struct wl1271 *wl)
 		if (ret < 0)
 			goto irq_disable;
 
-		wl->state = WL1271_STATE_PLT;
+		wl->plt = true;
+		wl->state = WL1271_STATE_ON;
 		wl1271_notice("firmware booted in PLT mode (%s)",
 			      wl->chip.fw_ver_str);
 
@@ -1405,7 +1418,7 @@ static int __wl1271_plt_stop(struct wl1271 *wl)
 
 	wl1271_notice("power down");
 
-	if (wl->state != WL1271_STATE_PLT) {
+	if (!wl->plt) {
 		wl1271_error("cannot power down because not in PLT "
 			     "state: %d", wl->state);
 		ret = -EBUSY;
@@ -1415,6 +1428,7 @@ static int __wl1271_plt_stop(struct wl1271 *wl)
 	wl1271_power_off(wl);
 
 	wl->state = WL1271_STATE_OFF;
+	wl->plt = false;
 	wl->rx_counter = 0;
 
 	mutex_unlock(&wl->mutex);
@@ -1972,7 +1986,7 @@ static bool wl12xx_init_fw(struct wl1271 *wl)
 
 	while (retries) {
 		retries--;
-		ret = wl1271_chip_wakeup(wl);
+		ret = wl12xx_chip_wakeup(wl, false);
 		if (ret < 0)
 			goto power_off;
 
@@ -2071,6 +2085,7 @@ static int wl1271_op_add_interface(struct ieee80211_hw *hw,
 		ret = -EBUSY;
 		goto out;
 	}
+
 
 	ret = wl12xx_init_vif_data(wl, vif);
 	if (ret < 0)
@@ -4870,7 +4885,7 @@ static int wl1271_register_hw(struct wl1271 *wl)
 
 static void wl1271_unregister_hw(struct wl1271 *wl)
 {
-	if (wl->state == WL1271_STATE_PLT)
+	if (wl->plt)
 		__wl1271_plt_stop(wl);
 
 	unregister_netdevice_notifier(&wl1271_dev_notifier);
@@ -5049,6 +5064,7 @@ static struct ieee80211_hw *wl1271_alloc_hw(void)
 	spin_lock_init(&wl->wl_lock);
 
 	wl->state = WL1271_STATE_OFF;
+	wl->fw_type = WL12XX_FW_TYPE_NONE;
 	mutex_init(&wl->mutex);
 
 	/* Apply default driver configuration. */
@@ -5116,6 +5132,7 @@ static int wl1271_free_hw(struct wl1271 *wl)
 
 	vfree(wl->fw);
 	wl->fw = NULL;
+	wl->fw_type = WL12XX_FW_TYPE_NONE;
 	kfree(wl->nvs);
 	wl->nvs = NULL;
 
