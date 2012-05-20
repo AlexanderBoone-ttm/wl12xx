@@ -833,16 +833,20 @@ static void wl12xx_irq_update_links_status(struct wl1271 *wl,
 	}
 }
 
-static void wl12xx_fw_status(struct wl1271 *wl,
-			     struct wl12xx_fw_status *status)
+static int wl12xx_fw_status(struct wl1271 *wl,
+			    struct wl12xx_fw_status *status)
 {
 	struct wl12xx_vif *wlvif;
 	struct timespec ts;
 	u32 old_tx_blk_count = wl->tx_blocks_available;
 	int avail, freed_blocks;
 	int i;
+	int ret;
 
-	wl1271_raw_read(wl, FW_STATUS_ADDR, status, sizeof(*status), false);
+	ret = wl1271_raw_read(wl, FW_STATUS_ADDR, status, sizeof(*status),
+			      false);
+	if (ret)
+		return ret;
 
 	wl1271_debug(DEBUG_IRQ, "intr: 0x%x (fw_rx_counter = %d, "
 		     "drv_rx_counter = %d, tx_results_counter = %d)",
@@ -899,6 +903,8 @@ static void wl12xx_fw_status(struct wl1271 *wl,
 	getnstimeofday(&ts);
 	wl->time_offset = (timespec_to_ns(&ts) >> 10) -
 		(s64)le32_to_cpu(status->fw_localtime);
+
+	return ret;
 }
 
 static void wl1271_flush_deferred_work(struct wl1271 *wl)
@@ -967,7 +973,11 @@ static irqreturn_t wl1271_irq(int irq, void *cookie)
 		clear_bit(WL1271_FLAG_IRQ_RUNNING, &wl->flags);
 		smp_mb__after_clear_bit();
 
-		wl12xx_fw_status(wl, wl->fw_status);
+		ret = wl12xx_fw_status(wl, wl->fw_status);
+		if (ret) {
+			wl12xx_queue_recovery_work(wl);
+			goto out;
+		}
 		intr = le32_to_cpu(wl->fw_status->intr);
 		intr &= WL1271_INTR_MASK;
 		if (!intr) {
@@ -988,7 +998,11 @@ static irqreturn_t wl1271_irq(int irq, void *cookie)
 		if (likely(intr & WL1271_ACX_INTR_DATA)) {
 			wl1271_debug(DEBUG_IRQ, "WL1271_ACX_INTR_DATA");
 
-			wl12xx_rx(wl, wl->fw_status);
+			ret = wl12xx_rx(wl, wl->fw_status);
+			if (ret) {
+				wl12xx_queue_recovery_work(wl);
+				goto out;
+			}
 
 			/* Check if any tx blocks were freed */
 			spin_lock_irqsave(&wl->wl_lock, flags);
@@ -1000,14 +1014,23 @@ static irqreturn_t wl1271_irq(int irq, void *cookie)
 				 * call the work function directly.
 				 */
 				wl1271_tx_work_locked(wl);
+
+				if (!test_bit(WL1271_FLAG_RECOVERY_IN_PROGRESS,
+					      &wl->flags))
+					goto out;
 			} else {
 				spin_unlock_irqrestore(&wl->wl_lock, flags);
 			}
 
 			/* check for tx results */
 			if (wl->fw_status->tx_results_counter !=
-			    (wl->tx_results_count & 0xff))
-				wl1271_tx_complete(wl);
+			    (wl->tx_results_count & 0xff)) {
+				ret = wl1271_tx_complete(wl);
+				if (ret) {
+					wl12xx_queue_recovery_work(wl);
+					goto out;
+				}
+			}
 
 			/* Make sure the deferred queues don't get too long */
 			defer_count = skb_queue_len(&wl->deferred_tx_queue) +
@@ -1018,12 +1041,20 @@ static irqreturn_t wl1271_irq(int irq, void *cookie)
 
 		if (intr & WL1271_ACX_INTR_EVENT_A) {
 			wl1271_debug(DEBUG_IRQ, "WL1271_ACX_INTR_EVENT_A");
-			wl1271_event_handle(wl, 0);
+			ret = wl1271_event_handle(wl, 0);
+			if (ret) {
+				wl12xx_queue_recovery_work(wl);
+				goto out;
+			}
 		}
 
 		if (intr & WL1271_ACX_INTR_EVENT_B) {
 			wl1271_debug(DEBUG_IRQ, "WL1271_ACX_INTR_EVENT_B");
-			wl1271_event_handle(wl, 1);
+			ret = wl1271_event_handle(wl, 1);
+			if (ret) {
+				wl12xx_queue_recovery_work(wl);
+				goto out;
+			}
 		}
 
 		if (intr & WL1271_ACX_INTR_INIT_COMPLETE)
@@ -1191,6 +1222,7 @@ static void wl12xx_read_fwlog_panic(struct wl1271 *wl)
 	u32 addr;
 	u32 first_addr;
 	u8 *block;
+	int ret;
 
 	if ((wl->quirks & WL12XX_QUIRK_FWLOG_NOT_IMPLEMENTED) ||
 	    (wl->conf.fwlog.mode != WL12XX_FWLOG_ON_DEMAND) ||
@@ -1213,7 +1245,10 @@ static void wl12xx_read_fwlog_panic(struct wl1271 *wl)
 		goto out;
 
 	/* Read the first memory block address */
-	wl12xx_fw_status(wl, wl->fw_status);
+	ret = wl12xx_fw_status(wl, wl->fw_status);
+	if (!ret)
+		goto out;
+
 	first_addr = le32_to_cpu(wl->fw_status->log_start_addr);
 	if (!first_addr)
 		goto out;
@@ -1222,8 +1257,10 @@ static void wl12xx_read_fwlog_panic(struct wl1271 *wl)
 	addr = first_addr;
 	do {
 		memset(block, 0, WL12XX_HW_BLOCK_SIZE);
-		wl1271_read_hwaddr(wl, addr, block, WL12XX_HW_BLOCK_SIZE,
-				   false);
+		ret = wl1271_read_hwaddr(wl, addr, block, WL12XX_HW_BLOCK_SIZE,
+					 false);
+		if (ret)
+			goto out;
 
 		/*
 		 * Memory blocks are linked to one another. The first 4 bytes
@@ -1254,7 +1291,6 @@ static void wl1271_recovery_work(struct work_struct *work)
 
 	if (wl->state != WL1271_STATE_ON)
 		goto out_unlock;
-
 
 	wl12xx_read_fwlog_panic(wl);
 
@@ -5541,14 +5577,19 @@ static void wl12xx_derive_mac_addresses(struct wl1271 *wl,
 	wl->hw->wiphy->addresses = wl->addresses;
 }
 
-static void wl12xx_get_fuse_mac(struct wl1271 *wl)
+static int wl12xx_get_fuse_mac(struct wl1271 *wl)
 {
 	u32 mac1, mac2;
+	int ret;
 
 	wl1271_set_partition(wl, &wl12xx_part_table[PART_DRPW]);
 
-	wl1271_read32(wl, WL12XX_REG_FUSE_BD_ADDR_1, &mac1);
-	wl1271_read32(wl, WL12XX_REG_FUSE_BD_ADDR_2, &mac2);
+	ret = wl1271_read32(wl, WL12XX_REG_FUSE_BD_ADDR_1, &mac1);
+	if (ret)
+		return ret;
+	ret = wl1271_read32(wl, WL12XX_REG_FUSE_BD_ADDR_2, &mac2);
+	if (ret)
+		return ret;
 
 	/* these are the two parts of the BD_ADDR */
 	wl->fuse_oui_addr = ((mac2 & 0xffff) << 8) +
@@ -5556,6 +5597,8 @@ static void wl12xx_get_fuse_mac(struct wl1271 *wl)
 	wl->fuse_nic_addr = mac1 & 0xffffff;
 
 	wl1271_set_partition(wl, &wl12xx_part_table[PART_DOWN]);
+
+	return ret;
 }
 
 static int wl12xx_get_hw_info(struct wl1271 *wl)
@@ -5567,12 +5610,18 @@ static int wl12xx_get_hw_info(struct wl1271 *wl)
 	if (ret < 0)
 		goto out;
 
-	wl1271_read32(wl, CHIP_ID_B, &wl->chip.id);
+	ret = wl1271_read32(wl, CHIP_ID_B, &wl->chip.id);
+	if (ret)
+		goto out;
 
 	if (wl->chip.id == CHIP_ID_1283_PG20)
-		wl1271_top_reg_read(wl, WL128X_REG_FUSE_DATA_2_1, &die_info);
+		ret = wl1271_top_reg_read(wl, WL128X_REG_FUSE_DATA_2_1,
+					  &die_info);
 	else
-		wl1271_top_reg_read(wl, WL127X_REG_FUSE_DATA_2_1, &die_info);
+		ret = wl1271_top_reg_read(wl, WL127X_REG_FUSE_DATA_2_1,
+					  &die_info);
+	if (ret)
+		goto out;
 
 	wl->hw_pg_ver = (s8) (die_info & PG_VER_MASK) >> PG_VER_OFFSET;
 
@@ -5580,11 +5629,11 @@ static int wl12xx_get_hw_info(struct wl1271 *wl)
 		wl->fuse_oui_addr = 0;
 		wl->fuse_nic_addr = 0;
 	} else {
-		wl12xx_get_fuse_mac(wl);
+		ret = wl12xx_get_fuse_mac(wl);
 	}
 
-	wl1271_power_off(wl);
 out:
+	wl1271_power_off(wl);
 	return ret;
 }
 

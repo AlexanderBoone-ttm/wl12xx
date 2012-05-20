@@ -65,13 +65,20 @@ int wl1271_cmd_send(struct wl1271 *wl, u16 id, void *buf, size_t len,
 	WARN_ON(len % 4 != 0);
 	WARN_ON(test_bit(WL1271_FLAG_IN_ELP, &wl->flags));
 
-	wl1271_write(wl, wl->cmd_box_addr, buf, len, false);
+	ret = wl1271_write(wl, wl->cmd_box_addr, buf, len, false);
+	if (ret)
+		goto fail;
 
-	wl1271_write32(wl, ACX_REG_INTERRUPT_TRIG, INTR_TRIG_CMD);
+	ret = wl1271_write32(wl, ACX_REG_INTERRUPT_TRIG, INTR_TRIG_CMD);
+	if (ret)
+		goto fail;
 
 	timeout = jiffies + msecs_to_jiffies(WL1271_COMMAND_TIMEOUT);
 
-	wl1271_read32(wl, ACX_REG_INTERRUPT_NO_CLEAR, &intr);
+	ret = wl1271_read32(wl, ACX_REG_INTERRUPT_NO_CLEAR, &intr);
+	if (ret)
+		goto fail;
+
 	while (!(intr & WL1271_ACX_INTR_CMD_COMPLETE)) {
 		if (time_after(jiffies, timeout)) {
 			wl1271_error("command complete timeout");
@@ -85,13 +92,17 @@ int wl1271_cmd_send(struct wl1271 *wl, u16 id, void *buf, size_t len,
 		else
 			msleep(1);
 
-		wl1271_read32(wl, ACX_REG_INTERRUPT_NO_CLEAR, &intr);
+		ret = wl1271_read32(wl, ACX_REG_INTERRUPT_NO_CLEAR, &intr);
+		if (ret)
+			goto fail;
 	}
 
 	/* read back the status code of the command */
 	if (res_len == 0)
 		res_len = sizeof(struct wl1271_cmd_header);
-	wl1271_read(wl, wl->cmd_box_addr, cmd, res_len, false);
+	ret = wl1271_read(wl, wl->cmd_box_addr, cmd, res_len, false);
+	if (ret)
+		goto fail;
 
 	status = le16_to_cpu(cmd->status);
 	if (status != CMD_STATUS_SUCCESS) {
@@ -100,8 +111,11 @@ int wl1271_cmd_send(struct wl1271 *wl, u16 id, void *buf, size_t len,
 		goto fail;
 	}
 
-	wl1271_write32(wl, ACX_REG_INTERRUPT_ACK,
-		       WL1271_ACX_INTR_CMD_COMPLETE);
+	ret = wl1271_write32(wl, ACX_REG_INTERRUPT_ACK,
+			     WL1271_ACX_INTR_CMD_COMPLETE);
+	if (ret)
+		goto fail;
+
 	return 0;
 
 fail:
@@ -344,6 +358,7 @@ static int wl1271_cmd_wait_for_event_or_timeout(struct wl1271 *wl, u32 mask)
 {
 	u32 events_vector, event;
 	unsigned long timeout;
+	int ret;
 
 	timeout = jiffies + msecs_to_jiffies(WL1271_EVENT_TIMEOUT);
 
@@ -357,11 +372,15 @@ static int wl1271_cmd_wait_for_event_or_timeout(struct wl1271 *wl, u32 mask)
 		msleep(1);
 
 		/* read from both event fields */
-		wl1271_read(wl, wl->mbox_ptr[0], &events_vector,
-			    sizeof(events_vector), false);
+		ret = wl1271_read(wl, wl->mbox_ptr[0], &events_vector,
+				  sizeof(events_vector), false);
+		if (ret)
+			return ret;
 		event = events_vector & mask;
-		wl1271_read(wl, wl->mbox_ptr[1], &events_vector,
-			    sizeof(events_vector), false);
+		ret = wl1271_read(wl, wl->mbox_ptr[1], &events_vector,
+				  sizeof(events_vector), false);
+		if (ret)
+			return ret;
 		event |= events_vector & mask;
 	} while (!event);
 

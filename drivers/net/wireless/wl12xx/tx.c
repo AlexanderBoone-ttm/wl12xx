@@ -717,8 +717,11 @@ void wl1271_tx_work_locked(struct wl1271 *wl)
 			 * Flush buffer and try again.
 			 */
 			wl1271_skb_queue_head(wl, wlvif, skb);
-			wl1271_write(wl, WL1271_SLV_MEM_DATA, wl->aggr_buf,
-				     buf_offset, true);
+			ret = wl1271_write(wl, WL1271_SLV_MEM_DATA,
+					   wl->aggr_buf, buf_offset, true);
+			if (ret)
+				goto fail;
+
 			sent_packets = true;
 			buf_offset = 0;
 			continue;
@@ -752,8 +755,10 @@ void wl1271_tx_work_locked(struct wl1271 *wl)
 
 out_ack:
 	if (buf_offset) {
-		wl1271_write(wl, WL1271_SLV_MEM_DATA, wl->aggr_buf,
-				buf_offset, true);
+		ret = wl1271_write(wl, WL1271_SLV_MEM_DATA, wl->aggr_buf,
+				   buf_offset, true);
+		if (ret)
+			goto fail;
 		sent_packets = true;
 	}
 	if (sent_packets) {
@@ -761,13 +766,21 @@ out_ack:
 		 * Interrupt the firmware with the new packets. This is only
 		 * required for older hardware revisions
 		 */
-		if (wl->quirks & WL12XX_QUIRK_END_OF_TRANSACTION)
-			wl1271_write32(wl, WL1271_HOST_WR_ACCESS,
-				       wl->tx_packets_count);
+		if (wl->quirks & WL12XX_QUIRK_END_OF_TRANSACTION) {
+			ret = wl1271_write32(wl, WL1271_HOST_WR_ACCESS,
+					     wl->tx_packets_count);
+			if (ret)
+				goto fail;
+		}
 
 		wl1271_handle_tx_low_watermark(wl);
 	}
 	wl12xx_rearm_rx_streaming(wl, active_hlids);
+
+	return;
+
+fail:
+	wl12xx_queue_recovery_work(wl);
 }
 
 void wl1271_tx_work(struct work_struct *work)
@@ -892,22 +905,29 @@ static void wl1271_tx_complete_packet(struct wl1271 *wl,
 }
 
 /* Called upon reception of a TX complete interrupt */
-void wl1271_tx_complete(struct wl1271 *wl)
+int wl1271_tx_complete(struct wl1271 *wl)
 {
 	struct wl1271_acx_mem_map *memmap =
 		(struct wl1271_acx_mem_map *)wl->target_mem_map;
 	u32 count, fw_counter;
 	u32 i;
+	int ret;
 
 	/* read the tx results from the chipset */
-	wl1271_read(wl, le32_to_cpu(memmap->tx_result),
-		    wl->tx_res_if, sizeof(*wl->tx_res_if), false);
+	ret = wl1271_read(wl, le32_to_cpu(memmap->tx_result),
+			  wl->tx_res_if, sizeof(*wl->tx_res_if), false);
+	if (ret)
+		return ret;
+
 	fw_counter = le32_to_cpu(wl->tx_res_if->tx_result_fw_counter);
 
 	/* write host counter to chipset (to ack) */
-	wl1271_write32(wl, le32_to_cpu(memmap->tx_result) +
-		       offsetof(struct wl1271_tx_hw_res_if,
-				tx_result_host_counter), fw_counter);
+	ret = wl1271_write32(wl, le32_to_cpu(memmap->tx_result) +
+			     offsetof(struct wl1271_tx_hw_res_if,
+				      tx_result_host_counter),
+			     fw_counter);
+	if (ret)
+		return ret;
 
 	count = fw_counter - wl->tx_results_count;
 	wl1271_debug(DEBUG_TX, "tx_complete received, packets: %d", count);
@@ -927,6 +947,8 @@ void wl1271_tx_complete(struct wl1271 *wl)
 
 		wl->tx_results_count++;
 	}
+
+	return ret;
 }
 
 void wl1271_tx_reset_link_queues(struct wl1271 *wl, u8 hlid)
