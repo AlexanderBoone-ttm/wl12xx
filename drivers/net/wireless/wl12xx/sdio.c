@@ -67,10 +67,10 @@ static void wl1271_sdio_set_block_size(struct device *child,
 	sdio_release_host(func);
 }
 
-static void wl12xx_sdio_raw_read(struct device *child, int addr, void *buf,
-				 size_t len, bool fixed)
+static int wl12xx_sdio_raw_read(struct device *child, int addr, void *buf,
+				size_t len, bool fixed)
 {
-	int ret;
+	int ret = 0;
 	struct wl12xx_sdio_glue *glue = dev_get_drvdata(child->parent);
 	struct sdio_func *func = dev_to_sdio_func(glue->dev);
 
@@ -92,14 +92,16 @@ static void wl12xx_sdio_raw_read(struct device *child, int addr, void *buf,
 
 	sdio_release_host(func);
 
-	if (ret)
+	if (WARN_ON(ret))
 		dev_err(child->parent, "sdio read failed (%d)\n", ret);
+
+	return ret;
 }
 
-static void wl12xx_sdio_raw_write(struct device *child, int addr, void *buf,
-				  size_t len, bool fixed)
+static int wl12xx_sdio_raw_write(struct device *child, int addr, void *buf,
+				 size_t len, bool fixed)
 {
-	int ret;
+	int ret = 0;
 	struct wl12xx_sdio_glue *glue = dev_get_drvdata(child->parent);
 	struct sdio_func *func = dev_to_sdio_func(glue->dev);
 
@@ -121,8 +123,10 @@ static void wl12xx_sdio_raw_write(struct device *child, int addr, void *buf,
 
 	sdio_release_host(func);
 
-	if (ret)
+	if (WARN_ON(ret))
 		dev_err(child->parent, "sdio write failed (%d)\n", ret);
+
+	return ret;
 }
 
 static int wl12xx_sdio_power_on(struct wl12xx_sdio_glue *glue)

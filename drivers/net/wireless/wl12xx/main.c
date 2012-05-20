@@ -1248,6 +1248,7 @@ static void wl1271_recovery_work(struct work_struct *work)
 		container_of(work, struct wl1271, recovery_work);
 	struct wl12xx_vif *wlvif;
 	struct ieee80211_vif *vif;
+	u32 pc = 0;
 
 	mutex_lock(&wl->mutex);
 
@@ -1259,8 +1260,9 @@ static void wl1271_recovery_work(struct work_struct *work)
 
 	wl->watchdog_recovery = false;
 
+	wl1271_read32(wl, SCR_PAD4, &pc);
 	wl1271_info("Hardware recovery in progress. FW ver: %s pc: 0x%x",
-		    wl->chip.fw_ver_str, wl1271_read32(wl, SCR_PAD4));
+		    wl->chip.fw_ver_str, pc);
 
 	BUG_ON(bug_on_recovery &&
 	       !test_bit(WL1271_FLAG_INTENDED_FW_RECOVERY, &wl->flags));
@@ -5545,8 +5547,8 @@ static void wl12xx_get_fuse_mac(struct wl1271 *wl)
 
 	wl1271_set_partition(wl, &wl12xx_part_table[PART_DRPW]);
 
-	mac1 = wl1271_read32(wl, WL12XX_REG_FUSE_BD_ADDR_1);
-	mac2 = wl1271_read32(wl, WL12XX_REG_FUSE_BD_ADDR_2);
+	wl1271_read32(wl, WL12XX_REG_FUSE_BD_ADDR_1, &mac1);
+	wl1271_read32(wl, WL12XX_REG_FUSE_BD_ADDR_2, &mac2);
 
 	/* these are the two parts of the BD_ADDR */
 	wl->fuse_oui_addr = ((mac2 & 0xffff) << 8) +
@@ -5559,18 +5561,18 @@ static void wl12xx_get_fuse_mac(struct wl1271 *wl)
 static int wl12xx_get_hw_info(struct wl1271 *wl)
 {
 	int ret;
-	u32 die_info;
+	u16 die_info;
 
 	ret = wl12xx_set_power_on(wl);
 	if (ret < 0)
 		goto out;
 
-	wl->chip.id = wl1271_read32(wl, CHIP_ID_B);
+	wl1271_read32(wl, CHIP_ID_B, &wl->chip.id);
 
 	if (wl->chip.id == CHIP_ID_1283_PG20)
-		die_info = wl1271_top_reg_read(wl, WL128X_REG_FUSE_DATA_2_1);
+		wl1271_top_reg_read(wl, WL128X_REG_FUSE_DATA_2_1, &die_info);
 	else
-		die_info = wl1271_top_reg_read(wl, WL127X_REG_FUSE_DATA_2_1);
+		wl1271_top_reg_read(wl, WL127X_REG_FUSE_DATA_2_1, &die_info);
 
 	wl->hw_pg_ver = (s8) (die_info & PG_VER_MASK) >> PG_VER_OFFSET;
 
