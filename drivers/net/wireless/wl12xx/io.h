@@ -58,13 +58,31 @@ void wl1271_io_init(struct wl1271 *wl);
 static inline int wl1271_raw_write(struct wl1271 *wl, int addr, void *buf,
 				   size_t len, bool fixed)
 {
-	return wl->if_ops->write(wl->dev, addr, buf, len, fixed);
+	int ret;
+
+	if (test_bit(WL1271_FLAG_SDIO_FAILED, &wl->flags))
+		return -EIO;
+
+	ret = wl->if_ops->write(wl->dev, addr, buf, len, fixed);
+	if (ret)
+		set_bit(WL1271_FLAG_SDIO_FAILED, &wl->flags);
+
+	return ret;
 }
 
 static inline int wl1271_raw_read(struct wl1271 *wl, int addr, void *buf,
 				  size_t len, bool fixed)
 {
-	return wl->if_ops->read(wl->dev, addr, buf, len, fixed);
+	int ret;
+
+	if (test_bit(WL1271_FLAG_SDIO_FAILED, &wl->flags))
+		return -EIO;
+
+	ret = wl->if_ops->read(wl->dev, addr, buf, len, fixed);
+	if (ret)
+		set_bit(WL1271_FLAG_SDIO_FAILED, &wl->flags);
+
+	return ret;
 }
 
 static inline u32 wl1271_raw_read32(struct wl1271 *wl, int addr, u32 *val)
