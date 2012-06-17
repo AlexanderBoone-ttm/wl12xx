@@ -2118,6 +2118,15 @@ static int wl1271_op_resume(struct ieee80211_hw *hw)
 		     wl->wow_enabled);
 	WARN_ON(!wl->wow_enabled);
 
+	mutex_lock(&wl->mutex);
+	if (test_bit(WL1271_FLAG_RECOVERY_IN_PROGRESS, &wl->flags)) {
+		/* this failed before because of the suspend */
+		ieee80211_queue_work(wl->hw, &wl->recovery_work);
+		mutex_unlock(&wl->mutex);
+		return 0;
+	}
+	mutex_unlock(&wl->mutex);
+
 	/*
 	 * re-enable irq_work enqueuing, and call irq_work directly if
 	 * there is a pending work.
