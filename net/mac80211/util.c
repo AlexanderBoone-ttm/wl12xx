@@ -1737,3 +1737,37 @@ bool ieee80211_suspending(struct ieee80211_hw *hw)
 	return local->quiescing;
 }
 EXPORT_SYMBOL(ieee80211_suspending);
+
+int ieee80211_started_vifs_count(struct ieee80211_hw *hw)
+{
+	struct ieee80211_local *local = hw_to_local(hw);
+	struct ieee80211_sub_if_data *sdata;
+	struct ieee80211_if_managed *ifmgd;
+	int count = 0;
+
+	list_for_each_entry(sdata, &local->interfaces, list) {
+		if (!ieee80211_sdata_running(sdata))
+		    continue;
+
+		switch (sdata->vif.type) {
+		case NL80211_IFTYPE_STATION:
+			ifmgd = &sdata->u.mgd;
+			/* we might already hold the lock... */
+			//mutex_lock(&ifmgd->mtx);
+			if (ifmgd->associated)
+				count++;
+			//mutex_unlock(&ifmgd->mtx);
+			break;
+
+		case NL80211_IFTYPE_AP:
+			if (sdata->vif.bss_conf.enable_beacon)
+				count++;
+			break;
+
+		default:
+			break;
+		}
+	}
+	return count;
+}
+EXPORT_SYMBOL(ieee80211_started_vifs_count);
