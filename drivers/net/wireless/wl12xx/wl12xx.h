@@ -461,6 +461,7 @@ struct wl1271 {
 	 * may want to reconisder it...
 	 */
 	struct delayed_work delayed_recovery;
+	bool force_mr_fw;
 
 	/* The mbox event mask */
 	u32 event_mask;

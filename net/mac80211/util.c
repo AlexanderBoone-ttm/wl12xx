@@ -1768,6 +1768,12 @@ int ieee80211_started_vifs_count(struct ieee80211_hw *hw)
 			break;
 		}
 	}
+	if (local->tmp_channel && local->tmp_channel != local->oper_channel) {
+		printk("tmp_channel: %d, oper_channel: %d\n",
+			local->tmp_channel->center_freq,
+			local->oper_channel->center_freq);
+		count++;
+	}
 	return count;
 }
 EXPORT_SYMBOL(ieee80211_started_vifs_count);
