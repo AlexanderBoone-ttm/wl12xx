@@ -2602,7 +2602,7 @@ static void wl12xx_force_active_psm(struct wl1271 *wl)
 }
 
 /* return true only on SR -> MR fw switch */
-static bool wl12xx_change_fw_if_needed(struct wl1271 *wl)
+bool wl12xx_change_fw_if_needed(struct wl1271 *wl)
 {
 	enum fw_change_type change_type;
 	int timeout = 0;
@@ -3022,7 +3022,6 @@ static int wl1271_sta_handle_idle(struct wl1271 *wl, struct wl12xx_vif *wlvif,
 	if (idle) {
 		/* no need to croc if we weren't busy (e.g. during boot) */
 		if (wl12xx_dev_role_started(wlvif)) {
-			wl12xx_change_fw_if_needed(wl);
 			ret = wl12xx_stop_dev(wl, wlvif);
 			if (ret < 0)
 				goto out;
@@ -3044,9 +3043,6 @@ static int wl1271_sta_handle_idle(struct wl1271 *wl, struct wl12xx_vif *wlvif,
 			wl1271_scan_sched_scan_stop(wl, wlvif);
 			ieee80211_sched_scan_stopped(wl->hw);
 		}
-
-		wl12xx_change_fw_if_needed(wl);
-
 		ret = wl12xx_start_dev(wl, wlvif);
 		if (ret < 0)
 			goto out;
@@ -3122,7 +3118,6 @@ static int wl12xx_config_vif(struct wl1271 *wl, struct wl12xx_vif *wlvif,
 					if (ret < 0)
 						return ret;
 
-					wl12xx_change_fw_if_needed(wl);
 					ret = wl12xx_start_dev(wl, wlvif);
 					if (ret < 0)
 						return ret;
