@@ -1747,32 +1747,14 @@ int ieee80211_started_vifs_count(struct ieee80211_hw *hw)
 
 	list_for_each_entry(sdata, &local->interfaces, list) {
 		if (!ieee80211_sdata_running(sdata))
-		    continue;
+			continue;
 
-		switch (sdata->vif.type) {
-		case NL80211_IFTYPE_STATION:
-			ifmgd = &sdata->u.mgd;
-			/* we might already hold the lock... */
-			//mutex_lock(&ifmgd->mtx);
-			if (ifmgd->associated)
-				count++;
-			//mutex_unlock(&ifmgd->mtx);
-			break;
+		if (sdata->vif.type == NL80211_IFTYPE_AP_VLAN ||
+		    sdata->vif.type == NL80211_IFTYPE_MONITOR)
+			continue;
 
-		case NL80211_IFTYPE_AP:
-			if (sdata->vif.bss_conf.enable_beacon)
-				count++;
-			break;
-
-		default:
-			break;
-		}
-	}
-	if (local->tmp_channel && local->tmp_channel != local->oper_channel) {
-		printk("tmp_channel: %d, oper_channel: %d\n",
-			local->tmp_channel->center_freq,
-			local->oper_channel->center_freq);
-		count++;
+		if (!sdata->vif.bss_conf.idle)
+			count++;
 	}
 	return count;
 }
