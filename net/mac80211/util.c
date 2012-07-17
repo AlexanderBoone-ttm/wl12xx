@@ -1737,3 +1737,24 @@ bool ieee80211_suspending(struct ieee80211_hw *hw)
 	return local->quiescing;
 }
 EXPORT_SYMBOL(ieee80211_suspending);
+
+int ieee80211_started_vifs_count(struct ieee80211_hw *hw)
+{
+	struct ieee80211_local *local = hw_to_local(hw);
+	struct ieee80211_sub_if_data *sdata;
+	int count = 0;
+
+	list_for_each_entry(sdata, &local->interfaces, list) {
+		if (!ieee80211_sdata_running(sdata))
+			continue;
+
+		if (sdata->vif.type == NL80211_IFTYPE_AP_VLAN ||
+		    sdata->vif.type == NL80211_IFTYPE_MONITOR)
+			continue;
+
+		if (!sdata->vif.bss_conf.idle)
+			count++;
+	}
+	return count;
+}
+EXPORT_SYMBOL(ieee80211_started_vifs_count);
