@@ -343,10 +343,12 @@ struct wl12xx_rx_data_filter {
 };
 
 struct wl1271 {
+	bool initialized;
 	struct ieee80211_hw *hw;
 	bool mac80211_registered;
 
 	struct device *dev;
+	struct platform_device *pdev;
 
 	void *if_priv;
 
@@ -574,6 +576,8 @@ struct wl1271 {
 
 	/* mutex for protecting the tx_flush function */
 	struct mutex flush_mutex;
+
+	struct completion nvs_loading_complete;
 };
 
 struct wl1271_station {
